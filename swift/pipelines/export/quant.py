@@ -262,10 +262,10 @@ class QuantEngine(ProcessorMixin):
     def gptq_model_quantize(self, v2: bool = False):
         # Monkey patch for gptqmodel 5.7.0 bug
         try:
-            from gptqmodel.utils.nogil_patcher import Autotuner
+            import triton.runtime.autotuner as triton_autotuner
 
-            if not hasattr(Autotuner, '_original_run'):
-                Autotuner._original_run = Autotuner.run
+            if not hasattr(triton_autotuner.Autotuner, '_original_run'):
+                triton_autotuner.Autotuner._original_run = triton_autotuner.Autotuner.run
 
                 def _patched_run(self, *args, **kwargs):
                     if not hasattr(self, '_cache_lock'):
@@ -273,7 +273,7 @@ class QuantEngine(ProcessorMixin):
                         self._cache_lock = threading.Lock()
                     return self._original_run(*args, **kwargs)
 
-                Autotuner.run = _patched_run
+                triton_autotuner.Autotuner.run = _patched_run
         except (ImportError, AttributeError):
             pass
 
