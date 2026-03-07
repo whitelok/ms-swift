@@ -15,22 +15,6 @@ from swift.template import MaxLengthError
 from swift.utils import HfConfigFactory, ProcessorMixin, deep_getattr, get_logger, get_model_parameter_info, to_device
 from ..utils import prepare_model_template
 
-# Monkey patch for gptqmodel 5.7.0 bug
-try:
-    import gptqmodel.utils.nogil_patcher
-
-    _original_get_config = gptqmodel.utils.nogil_patcher._get_config_for_key
-
-    def _patched_get_config_for_key(self, *args, **kwargs):
-        if not hasattr(self, '_cache_lock'):
-            import threading
-            self._cache_lock = threading.Lock()
-        return _original_get_config(self, *args, **kwargs)
-
-    gptqmodel.utils.nogil_patcher._get_config_for_key = _patched_get_config_for_key
-except ImportError:
-    pass
-
 logger = get_logger()
 
 
@@ -276,6 +260,22 @@ class QuantEngine(ProcessorMixin):
                 hook.remove()
 
     def gptq_model_quantize(self, v2: bool = False):
+        # Monkey patch for gptqmodel 5.7.0 bug
+        try:
+            import gptqmodel.utils.nogil_patcher
+
+            _original_get_config = gptqmodel.utils.nogil_patcher._get_config_for_key
+
+            def _patched_get_config_for_key(self, *args, **kwargs):
+                if not hasattr(self, '_cache_lock'):
+                    import threading
+                    self._cache_lock = threading.Lock()
+                return _original_get_config(self, *args, **kwargs)
+
+            gptqmodel.utils.nogil_patcher._get_config_for_key = _patched_get_config_for_key
+        except ImportError:
+            pass
+
         from optimum.gptq import GPTQQuantizer
         args = self.args
         logger.info(f'Quantization dataset: {args.dataset}')
