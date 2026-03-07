@@ -262,17 +262,18 @@ class QuantEngine(ProcessorMixin):
     def gptq_model_quantize(self, v2: bool = False):
         # Monkey patch for gptqmodel 5.7.0 bug
         try:
-            import gptqmodel.utils.nogil_patcher
+            from gptqmodel.utils.nogil_patcher import Autotuner
 
-            _original_get_config = gptqmodel.utils.nogil_patcher._get_config_for_key
+            if not hasattr(Autotuner, '_original_init'):
+                Autotuner._original_init = Autotuner.__init__
 
-            def _patched_get_config_for_key(self, *args, **kwargs):
-                if not hasattr(self, '_cache_lock'):
-                    import threading
-                    self._cache_lock = threading.Lock()
-                return _original_get_config(self, *args, **kwargs)
+                def _patched_init(self, *args, **kwargs):
+                    self._original_init(*args, **kwargs)
+                    if not hasattr(self, '_cache_lock'):
+                        import threading
+                        self._cache_lock = threading.Lock()
 
-            gptqmodel.utils.nogil_patcher._get_config_for_key = _patched_get_config_for_key
+                Autotuner.__init__ = _patched_init
         except ImportError:
             pass
 
