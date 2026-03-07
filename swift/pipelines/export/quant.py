@@ -262,19 +262,26 @@ class QuantEngine(ProcessorMixin):
     def gptq_model_quantize(self, v2: bool = False):
         # Monkey patch for gptqmodel 5.7.0 bug
         try:
-            import triton.runtime.autotuner as triton_autotuner
-
-            if not hasattr(triton_autotuner.Autotuner, '_original_run'):
-                triton_autotuner.Autotuner._original_run = triton_autotuner.Autotuner.run
-
-                def _patched_run(self, *args, **kwargs):
-                    if not hasattr(self, '_cache_lock'):
-                        import threading
-                        self._cache_lock = threading.Lock()
-                    return self._original_run(*args, **kwargs)
-
-                triton_autotuner.Autotuner.run = _patched_run
-        except (ImportError, AttributeError):
+            import triton.runtime.jit as triton_jit
+            import threading
+            
+            # Find the patched run function
+            run_fn = triton_jit.JITFunction.run
+            if hasattr(run_fn, '__globals__'):
+                target_globals = run_fn.__globals__
+                # Look for the internal function that causes the error
+                if '_get_config_for_key' in target_globals:
+                    _original_get_config = target_globals['_get_config_for_key']
+                    
+                    if not hasattr(_original_get_config, '_is_patched'):
+                        def _patched_get_config_for_key(self, *args, **kwargs):
+                            if not hasattr(self, '_cache_lock'):
+                                self._cache_lock = threading.Lock()
+                            return _original_get_config(self, *args, **kwargs)
+                        
+                        _patched_get_config_for_key._is_patched = True
+                        target_globals['_get_config_for_key'] = _patched_get_config_for_key
+        except Exception:
             pass
 
         from optimum.gptq import GPTQQuantizer
