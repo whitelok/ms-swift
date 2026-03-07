@@ -264,17 +264,17 @@ class QuantEngine(ProcessorMixin):
         try:
             from gptqmodel.utils.nogil_patcher import Autotuner
 
-            if not hasattr(Autotuner, '_original_init'):
-                Autotuner._original_init = Autotuner.__init__
+            if not hasattr(Autotuner, '_original_run'):
+                Autotuner._original_run = Autotuner.run
 
-                def _patched_init(self, *args, **kwargs):
-                    self._original_init(*args, **kwargs)
+                def _patched_run(self, *args, **kwargs):
                     if not hasattr(self, '_cache_lock'):
                         import threading
                         self._cache_lock = threading.Lock()
+                    return self._original_run(*args, **kwargs)
 
-                Autotuner.__init__ = _patched_init
-        except ImportError:
+                Autotuner.run = _patched_run
+        except (ImportError, AttributeError):
             pass
 
         from optimum.gptq import GPTQQuantizer
